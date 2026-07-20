@@ -1,0 +1,5 @@
+{
+  "name": "mock-agent",
+  "private": true,
+  "type": "module"
+}

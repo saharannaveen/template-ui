@@ -1,0 +1,91 @@
+services:
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    ports:
+      - "6399:6379"
+    command: ["valkey-server", "--protected-mode", "no", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+    networks:
+      - e2e
+
+  gateway:
+    build:
+      context: ${GATEWAY_SRC_PATH:-../../Dev Loop/agentforge/components/gateway}
+      dockerfile: Containerfile
+      target: image-standalone
+    env_file:
+      - .env
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - e2e
+
+  mock-agent:
+    build:
+      context: ./mock-agent
+      dockerfile: Containerfile
+    environment:
+      PORT: 5002
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q -O /dev/null http://127.0.0.1:5002/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+    networks:
+      - e2e
+
+  template-ui:
+    build:
+      context: ..
+      dockerfile: Containerfile
+    environment:
+      PORT: 5003
+      AUTH_ENABLED: "false"
+      AGENT_HOST: http://mock-agent:5002
+      COOKIE_SIGN: e2e-test-cookie-sign-secret-must-be-32-chars-long-minimum
+      NODE_ENV: production
+    depends_on:
+      mock-agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:5003/_health"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    networks:
+      - e2e
+
+  nginx:
+    image: docker.io/nginx:1-alpine
+    ports:
+      - "${E2E_PORT:-3100}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+      template-ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q -O /dev/null http://127.0.0.1:80/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+    networks:
+      - e2e
+
+networks:
+  e2e:
+    driver: bridge

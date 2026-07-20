@@ -15,7 +15,9 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "bash e2e/setup.sh && npx playwright test; EXIT=$?; bash e2e/teardown.sh; exit $EXIT",
+    "test:e2e:run": "npx playwright test"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
@@ -62,6 +64,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/user-event": "^14.6.1",
