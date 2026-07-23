@@ -41,8 +41,33 @@ async function seedValkeyToken(sub: string): Promise<void> {
   }
 }
 
+/**
+ * Flush rate limit keys from Valkey so retries don't get 429'd
+ * by counters left over from the previous test run.
+ */
+async function flushRateLimitKeys(): Promise<void> {
+  const { execSync } = await import('child_process');
+  try {
+    const keys = execSync(
+      'podman exec e2e_valkey_1 valkey-cli KEYS "gw:ratelimit:*"',
+      { stdio: 'pipe' },
+    ).toString().trim();
+    if (keys) {
+      for (const key of keys.split('\n')) {
+        execSync(
+          `podman exec e2e_valkey_1 valkey-cli DEL "${key}"`,
+          { stdio: 'pipe' },
+        );
+      }
+    }
+  } catch {
+    // best-effort
+  }
+}
+
 export const test = base.extend<AuthFixtures>({
   login: async ({ page, context, baseURL }, use) => {
+    await flushRateLimitKeys();
     const loginFn = async (email = 'e2e-test@example.com') => {
       const origin = baseURL || 'http://localhost:3100';
       const response = await page.request.post('/auth/dev/login', {

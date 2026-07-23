@@ -1,6 +1,6 @@
 import type { Message } from '@langchain/langgraph-sdk';
 
-import { parseRetryAfterSeconds, triggerRateLimit } from '@/services/authenticated-fetch';
+import { parseRetryAfterSeconds, triggerRateLimit, notifySessionExpired } from '@/services/authenticated-fetch';
 import { buildAgentApiUrl } from '../app-paths';
 import type { HITLInterruptValue } from '@/types/deep-agent';
 
@@ -149,6 +149,10 @@ export class StreamingManager {
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          notifySessionExpired();
+          throw new Error('Session expired. Please try again.');
+        }
         if (response.status === 429) {
           const retrySeconds = parseRetryAfterSeconds(response.headers.get('Retry-After'));
           triggerRateLimit(retrySeconds);

@@ -71,6 +71,7 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
     await page.waitForLoadState('networkidle');
 
     // Still authenticated — page renders the app, not a 401 JSON
+    await root.waitFor({ state: 'attached', timeout: 15_000 });
     await expect(root).not.toBeEmpty({ timeout: 15_000 });
 
     // Session is still valid on gateway
@@ -117,15 +118,15 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
   }) => {
     await login('timeout-user@example.com');
 
-    // Verify we're authenticated
-    const meResp = await page.request.get('/auth/me');
-    expect(meResp.status()).toBe(200);
+    // Verify we're authenticated via a non-auth path (goes through idle timeout middleware)
+    const rootResp = await page.request.get('/');
+    expect(rootResp.status()).toBe(200);
 
-    // Wait for session to expire on the gateway (5s idle timeout)
+    // Wait for session to expire on the gateway
     await waitForSessionExpiry();
 
-    // Gateway should now reject us
-    const expiredResp = await page.request.get('/auth/me');
+    // Use a non-auth path — /auth/* is exempted from idle timeout middleware
+    const expiredResp = await page.request.get('/');
     expect(expiredResp.status()).toBe(401);
   });
 
@@ -146,22 +147,16 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
     // Wait for session to expire
     await waitForSessionExpiry();
 
-    // Trigger an API call that will get 401 from the gateway via nginx auth_request
-    // This will cause authenticatedFetch to fire onAuthExpired
-    await page.evaluate(async () => {
-      try {
-        const resp = await fetch('/proxy/agent/health', { credentials: 'include' });
-        if (resp.status === 401) {
-          // Manually trigger since authenticatedFetch may not be wired for this path
-          document.dispatchEvent(new CustomEvent('session-expired-test'));
-        }
-      } catch {
-        // expected
-      }
-    });
+    // Trigger a UI action that uses authenticatedFetch — sending a chat message.
+    // The 401 response will call onAuthExpired → setSessionExpired(true) → modal.
+    const input = page.locator(
+      'textarea, input[type="text"], [role="textbox"], [contenteditable="true"]',
+    );
+    await expect(input.first()).toBeVisible({ timeout: 15_000 });
+    await input.first().fill('trigger session check');
+    await input.first().press('Enter');
 
     // The SessionExpiredModal should appear
-    // It may take a moment for React to re-render
     const modal = page.getByText('Session Expired');
     await expect(modal.first()).toBeVisible({ timeout: 10_000 });
   });
@@ -177,15 +172,15 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
   }) => {
     await login('relogin-user@example.com');
 
-    // Verify auth works
-    const meResp1 = await page.request.get('/auth/me');
-    expect(meResp1.status()).toBe(200);
+    // Verify auth works via a non-auth path
+    const rootResp = await page.request.get('/');
+    expect(rootResp.status()).toBe(200);
 
     // Wait for session expiry
     await waitForSessionExpiry();
 
-    // Confirm session is expired
-    const expiredResp = await page.request.get('/auth/me');
+    // Confirm session is expired (use non-auth path — /auth/* skips idle timeout middleware)
+    const expiredResp = await page.request.get('/');
     expect(expiredResp.status()).toBe(401);
 
     // Re-login
@@ -212,13 +207,14 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
     const meResp = await page.request.get('/auth/me');
     expect(meResp.status()).toBe(200);
 
-    // Hit the gateway logout endpoint
-    const logoutResp = await page.request.get('/auth/logout');
-    // Gateway logout returns 307 redirect or 200
-    expect([200, 307].includes(logoutResp.status()) || logoutResp.ok()).toBe(true);
+    // Hit the gateway logout endpoint.
+    // Gateway returns 307 → / but Playwright follows the redirect.
+    // After logout the session is cleared, so the final redirect to /
+    // hits nginx auth_request → 401. We just verify the session is gone.
+    await page.request.get('/auth/logout');
 
-    // Session should be invalidated — /auth/me returns 401
-    const postLogoutResp = await page.request.get('/auth/me');
+    // Session should be invalidated — / returns 401 via nginx auth_request
+    const postLogoutResp = await page.request.get('/');
     expect(postLogoutResp.status()).toBe(401);
   });
 
@@ -285,15 +281,15 @@ test.describe('Auth Lifecycle — Gateway + Template-UI Integration', () => {
     // Step 4: Wait for session to expire
     await waitForSessionExpiry();
 
-    // Step 5: Verify session is expired
-    const expiredResp = await page.request.get('/auth/me');
+    // Step 5: Verify session is expired (use non-auth path — /auth/* skips idle timeout middleware)
+    const expiredResp = await page.request.get('/');
     expect(expiredResp.status()).toBe(401);
 
     // Step 6: Re-login
     await relogin('lifecycle-user@example.com');
 
     // Step 7: Verify the app is functional again
-    const restoredResp = await page.request.get('/auth/me');
+    const restoredResp = await page.request.get('/');
     expect(restoredResp.status()).toBe(200);
 
     // Step 8: Navigate back and verify the page loads

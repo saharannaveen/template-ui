@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gateway Auth Integration — Before & After</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f0f4f8; color: #1a202c; padding: 40px; }
+  h1 { text-align: center; font-size: 28px; margin-bottom: 8px; color: #1a365d; }
+  .subtitle { text-align: center; font-size: 14px; color: #718096; margin-bottom: 40px; }
+  .section { margin-bottom: 60px; }
+  .section-title { font-size: 22px; font-weight: 700; margin-bottom: 24px; padding-left: 12px; border-left: 4px solid; }
+  .section-title.overview { border-color: #3182ce; color: #2b6cb0; }
+  .section-title.before { border-color: #e53e3e; color: #c53030; }
+  .section-title.after { border-color: #38a169; color: #276749; }
+  .section-title.changes { border-color: #805ad5; color: #6b46c1; }
+
+  /* ── Topology Diagram ── */
+  .topology { display: flex; justify-content: center; padding: 30px 0; }
+  .topology svg { filter: drop-shadow(0 2px 8px rgba(0,0,0,0.08)); }
+
+  /* ── Sequence Diagrams ── */
+  .sequence-wrap { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow-x: auto; padding: 30px; }
+  .sequence-wrap svg { display: block; margin: 0 auto; }
+
+  /* ── Callout Boxes ── */
+  .callout { border-radius: 10px; padding: 20px 24px; margin-top: 20px; font-size: 14px; line-height: 1.7; }
+  .callout.bug { background: #fff5f5; border: 1px solid #fed7d7; }
+  .callout.bug strong { color: #c53030; }
+  .callout.fix { background: #f0fff4; border: 1px solid #c6f6d5; }
+  .callout.fix strong { color: #276749; }
+  .callout ol { margin-left: 20px; margin-top: 8px; }
+  .callout li { margin-bottom: 4px; }
+
+  /* ── Changes Table ── */
+  .changes-grid { display: grid; gap: 16px; }
+  .change-card { background: #fff; border-radius: 10px; padding: 18px 22px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-left: 4px solid; }
+  .change-card.gateway { border-color: #ed8936; }
+  .change-card.ui { border-color: #4299e1; }
+  .change-file { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .change-card.gateway .change-file { color: #c05621; }
+  .change-card.ui .change-file { color: #2b6cb0; }
+  .change-desc { font-size: 14px; color: #4a5568; }
+  .change-why { font-size: 13px; color: #a0aec0; margin-top: 4px; font-style: italic; }
+  .label { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 8px; border-radius: 4px; margin-bottom: 8px; }
+  .label.gw { background: #feebc8; color: #c05621; }
+  .label.tui { background: #bee3f8; color: #2a4365; }
+</style>
+</head>
+<body>
+
+<h1>Gateway Auth Integration</h1>
+<p class="subtitle">Before &amp; After — Idle Timeout Architecture</p>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- SECTION 1: TOPOLOGY                             -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title overview">E2E Stack Topology</div>
+  <div class="topology">
+    <svg width="720" height="420" viewBox="0 0 720 420" xmlns="http://www.w3.org/2000/svg">
+      <!-- Background -->
+      <rect width="720" height="420" rx="16" fill="#ffffff"/>
+
+      <!-- Browser -->
+      <rect x="270" y="16" width="180" height="52" rx="10" fill="#EBF8FF" stroke="#3182CE" stroke-width="2"/>
+      <text x="360" y="38" text-anchor="middle" font-size="13" font-weight="700" fill="#2B6CB0">Browser</text>
+      <text x="360" y="54" text-anchor="middle" font-size="11" fill="#63B3ED">(Playwright)</text>
+
+      <!-- Arrow: Browser → NGINX -->
+      <line x1="360" y1="68" x2="360" y2="108" stroke="#A0AEC0" stroke-width="2" marker-end="url(#arrow-grey)"/>
+
+      <!-- NGINX -->
+      <rect x="270" y="108" width="180" height="52" rx="10" fill="#F0FFF4" stroke="#38A169" stroke-width="2"/>
+      <text x="360" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#276749">NGINX</text>
+      <text x="360" y="146" text-anchor="middle" font-size="11" fill="#68D391">:3100</text>
+
+      <!-- Arrow: NGINX → Gateway (auth_request) -->
+      <path d="M450,134 L530,134" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+      <text x="490" y="126" text-anchor="middle" font-size="10" fill="#E53E3E" font-weight="600">auth_request</text>
+
+      <!-- Gateway -->
+      <rect x="530" y="108" width="170" height="52" rx="10" fill="#FFFAF0" stroke="#ED8936" stroke-width="2"/>
+      <text x="615" y="130" text-anchor="middle" font-size="13" font-weight="700" fill="#C05621">GATEWAY</text>
+      <text x="615" y="146" text-anchor="middle" font-size="11" fill="#F6AD55">:8080</text>
+
+      <!-- Arrow: Gateway → Valkey -->
+      <line x1="615" y1="160" x2="615" y2="220" stroke="#A0AEC0" stroke-width="2" marker-end="url(#arrow-grey)"/>
+
+      <!-- Valkey -->
+      <rect x="530" y="220" width="170" height="52" rx="10" fill="#FAF5FF" stroke="#805AD5" stroke-width="2"/>
+      <text x="615" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#6B46C1">VALKEY</text>
+      <text x="615" y="258" text-anchor="middle" font-size="11" fill="#B794F4">:6379</text>
+
+      <!-- Arrow: NGINX → Template-UI -->
+      <line x1="360" y1="160" x2="360" y2="220" stroke="#A0AEC0" stroke-width="2" marker-end="url(#arrow-grey)"/>
+      <text x="390" y="194" text-anchor="start" font-size="10" fill="#718096">proxy_pass</text>
+
+      <!-- Template-UI -->
+      <rect x="270" y="220" width="180" height="52" rx="10" fill="#EBF8FF" stroke="#4299E1" stroke-width="2"/>
+      <text x="360" y="242" text-anchor="middle" font-size="13" font-weight="700" fill="#2B6CB0">TEMPLATE-UI</text>
+      <text x="360" y="258" text-anchor="middle" font-size="11" fill="#63B3ED">:5003</text>
+
+      <!-- Arrow: Template-UI → Mock Agent -->
+      <line x1="360" y1="272" x2="360" y2="332" stroke="#A0AEC0" stroke-width="2" marker-end="url(#arrow-grey)"/>
+
+      <!-- Mock Agent -->
+      <rect x="270" y="332" width="180" height="52" rx="10" fill="#FFF5F5" stroke="#FC8181" stroke-width="2"/>
+      <text x="360" y="354" text-anchor="middle" font-size="13" font-weight="700" fill="#C53030">MOCK-AGENT</text>
+      <text x="360" y="370" text-anchor="middle" font-size="11" fill="#FC8181">:5002</text>
+
+      <!-- Legend -->
+      <rect x="20" y="340" width="200" height="66" rx="8" fill="#F7FAFC" stroke="#E2E8F0" stroke-width="1"/>
+      <text x="30" y="358" font-size="11" font-weight="700" fill="#4A5568">Legend</text>
+      <line x1="30" y1="372" x2="60" y2="372" stroke="#A0AEC0" stroke-width="2"/>
+      <text x="66" y="376" font-size="10" fill="#718096">HTTP proxy</text>
+      <line x1="30" y1="392" x2="60" y2="392" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3"/>
+      <text x="66" y="396" font-size="10" fill="#718096">NGINX auth subrequest</text>
+
+      <!-- Arrow markers -->
+      <defs>
+        <marker id="arrow-grey" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#A0AEC0"/></marker>
+        <marker id="arrow-red" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#E53E3E"/></marker>
+        <marker id="arrow-green" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#38A169"/></marker>
+        <marker id="arrow-orange" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#ED8936"/></marker>
+        <marker id="arrow-purple" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="#805AD5"/></marker>
+      </defs>
+    </svg>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- SECTION 2: BEFORE (BROKEN)                      -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title before">BEFORE — Broken Idle Timeout</div>
+  <div class="sequence-wrap">
+    <svg width="840" height="560" viewBox="0 0 840 560" xmlns="http://www.w3.org/2000/svg">
+      <!-- Config banner -->
+      <rect x="240" y="8" width="360" height="28" rx="6" fill="#FFF5F5" stroke="#FED7D7" stroke-width="1"/>
+      <text x="420" y="26" text-anchor="middle" font-size="12" font-weight="600" fill="#C53030">SESSION_IDLE_TIMEOUT = 15s  (configured but never enforced)</text>
+
+      <!-- Lifelines -->
+      <rect x="60" y="50" width="120" height="32" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="2"/>
+      <text x="120" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#2B6CB0">Browser</text>
+      <line x1="120" y1="82" x2="120" y2="540" stroke="#3182CE" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <rect x="310" y="50" width="120" height="32" rx="8" fill="#F0FFF4" stroke="#38A169" stroke-width="2"/>
+      <text x="370" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#276749">NGINX</text>
+      <line x1="370" y1="82" x2="370" y2="540" stroke="#38A169" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <rect x="560" y="50" width="120" height="32" rx="8" fill="#FFFAF0" stroke="#ED8936" stroke-width="2"/>
+      <text x="620" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#C05621">GATEWAY</text>
+      <line x1="620" y1="82" x2="620" y2="540" stroke="#ED8936" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <!-- ── First Request ── -->
+      <!-- Browser → NGINX -->
+      <line x1="120" y1="110" x2="370" y2="110" stroke="#3182CE" stroke-width="2" marker-end="url(#arrow-grey)"/>
+      <text x="245" y="104" text-anchor="middle" font-size="11" font-weight="600" fill="#2B6CB0">GET /</text>
+
+      <!-- NGINX → Gateway auth_request -->
+      <line x1="370" y1="130" x2="620" y2="130" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+      <text x="495" y="124" text-anchor="middle" font-size="11" fill="#E53E3E">auth_request → /auth/check</text>
+
+      <!-- Gateway internal: middleware skips -->
+      <rect x="640" y="140" width="185" height="64" rx="6" fill="#FFF5F5" stroke="#FED7D7" stroke-width="1"/>
+      <text x="732" y="157" text-anchor="middle" font-size="11" font-weight="600" fill="#E53E3E">Middleware SKIPS</text>
+      <text x="732" y="173" text-anchor="middle" font-size="10" fill="#718096">path starts with /auth/</text>
+      <text x="732" y="189" text-anchor="middle" font-size="10" fill="#718096">→ bypass idle check</text>
+
+      <!-- Gateway → NGINX 200 -->
+      <line x1="620" y1="214" x2="370" y2="214" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="495" y="208" text-anchor="middle" font-size="11" font-weight="600" fill="#38A169">200 OK</text>
+
+      <!-- NGINX → Browser 200 -->
+      <line x1="370" y1="234" x2="120" y2="234" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="245" y="228" text-anchor="middle" font-size="11" font-weight="600" fill="#38A169">200 (page)</text>
+
+      <!-- Idle period -->
+      <rect x="30" y="260" width="180" height="30" rx="6" fill="#FEFCBF" stroke="#F6E05E" stroke-width="1"/>
+      <text x="120" y="280" text-anchor="middle" font-size="12" font-weight="600" fill="#975A16">⏱  20 seconds idle ...</text>
+
+      <!-- ── Second Request (should be 401) ── -->
+      <!-- Browser → NGINX -->
+      <line x1="120" y1="310" x2="370" y2="310" stroke="#3182CE" stroke-width="2" marker-end="url(#arrow-grey)"/>
+      <text x="245" y="304" text-anchor="middle" font-size="11" font-weight="600" fill="#2B6CB0">GET /</text>
+
+      <!-- NGINX → Gateway auth_request -->
+      <line x1="370" y1="330" x2="620" y2="330" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+      <text x="495" y="324" text-anchor="middle" font-size="11" fill="#E53E3E">auth_request → /auth/check</text>
+
+      <!-- Gateway internal: middleware skips AGAIN -->
+      <rect x="640" y="340" width="185" height="50" rx="6" fill="#FFF5F5" stroke="#FED7D7" stroke-width="1"/>
+      <text x="732" y="357" text-anchor="middle" font-size="11" font-weight="600" fill="#E53E3E">Middleware SKIPS</text>
+      <text x="732" y="375" text-anchor="middle" font-size="10" fill="#718096">AGAIN! Still /auth/ path</text>
+
+      <!-- Gateway → NGINX 200 (BUG!) -->
+      <line x1="620" y1="400" x2="370" y2="400" stroke="#E53E3E" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+      <text x="495" y="394" text-anchor="middle" font-size="11" font-weight="700" fill="#E53E3E">200 OK</text>
+
+      <!-- BUG callout -->
+      <rect x="400" y="410" width="240" height="30" rx="6" fill="#E53E3E"/>
+      <text x="520" y="430" text-anchor="middle" font-size="12" font-weight="700" fill="#FFF">BUG: Should be 401!</text>
+
+      <!-- NGINX → Browser 200 -->
+      <line x1="370" y1="456" x2="120" y2="456" stroke="#E53E3E" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+      <text x="245" y="450" text-anchor="middle" font-size="11" font-weight="700" fill="#E53E3E">200 (page) — user still in!</text>
+
+      <!-- Root cause -->
+      <rect x="30" y="480" width="790" height="50" rx="8" fill="#FFF5F5" stroke="#FEB2B2" stroke-width="1.5"/>
+      <text x="420" y="500" text-anchor="middle" font-size="12" font-weight="600" fill="#C53030">Root Cause: Middleware skips /auth/* paths. NGINX auth_request calls /auth/check (an /auth/* path).</text>
+      <text x="420" y="518" text-anchor="middle" font-size="12" fill="#E53E3E">Cookie-based last_activity impossible — NGINX swallows Set-Cookie from auth subrequests.</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- SECTION 3: AFTER (FIXED)                        -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title after">AFTER — Valkey-Based Idle Timeout</div>
+  <div class="sequence-wrap">
+    <svg width="950" height="700" viewBox="0 0 950 700" xmlns="http://www.w3.org/2000/svg">
+      <!-- Config banner -->
+      <rect x="280" y="8" width="390" height="28" rx="6" fill="#F0FFF4" stroke="#C6F6D5" stroke-width="1"/>
+      <text x="475" y="26" text-anchor="middle" font-size="12" font-weight="600" fill="#276749">SESSION_IDLE_TIMEOUT = 15s  (enforced via Valkey TTL)</text>
+
+      <!-- Lifelines -->
+      <rect x="30" y="50" width="110" height="32" rx="8" fill="#EBF8FF" stroke="#3182CE" stroke-width="2"/>
+      <text x="85" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#2B6CB0">Browser</text>
+      <line x1="85" y1="82" x2="85" y2="680" stroke="#3182CE" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <rect x="230" y="50" width="110" height="32" rx="8" fill="#F0FFF4" stroke="#38A169" stroke-width="2"/>
+      <text x="285" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#276749">NGINX</text>
+      <line x1="285" y1="82" x2="285" y2="680" stroke="#38A169" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <rect x="460" y="50" width="110" height="32" rx="8" fill="#FFFAF0" stroke="#ED8936" stroke-width="2"/>
+      <text x="515" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#C05621">GATEWAY</text>
+      <line x1="515" y1="82" x2="515" y2="680" stroke="#ED8936" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <rect x="680" y="50" width="110" height="32" rx="8" fill="#FAF5FF" stroke="#805AD5" stroke-width="2"/>
+      <text x="735" y="71" text-anchor="middle" font-size="13" font-weight="700" fill="#6B46C1">VALKEY</text>
+      <line x1="735" y1="82" x2="735" y2="680" stroke="#805AD5" stroke-width="1.5" stroke-dasharray="4,4"/>
+
+      <!-- ── Phase 1: LOGIN ── -->
+      <rect x="0" y="100" width="56" height="20" rx="4" fill="#805AD5"/>
+      <text x="28" y="114" text-anchor="middle" font-size="10" font-weight="700" fill="#FFF">LOGIN</text>
+
+      <!-- Browser → Gateway: POST login -->
+      <line x1="85" y1="130" x2="515" y2="130" stroke="#3182CE" stroke-width="2" marker-end="url(#arrow-orange)"/>
+      <text x="300" y="124" text-anchor="middle" font-size="11" font-weight="600" fill="#2B6CB0">POST /auth/dev/login</text>
+
+      <!-- Gateway → Valkey: seed activity key -->
+      <line x1="515" y1="150" x2="735" y2="150" stroke="#805AD5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+      <text x="625" y="144" text-anchor="middle" font-size="11" fill="#6B46C1">SET session:activity:{sub}</text>
+
+      <!-- Valkey note -->
+      <rect x="760" y="138" width="90" height="24" rx="5" fill="#FAF5FF" stroke="#D6BCFA" stroke-width="1"/>
+      <text x="805" y="155" text-anchor="middle" font-size="11" font-weight="600" fill="#6B46C1">TTL = 15s</text>
+
+      <!-- Gateway → Browser: 200 + cookie -->
+      <line x1="515" y1="180" x2="85" y2="180" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="300" y="174" text-anchor="middle" font-size="11" font-weight="600" fill="#38A169">200 + Set-Cookie (session)</text>
+
+      <!-- ── Phase 2: AUTHENTICATED REQUEST ── -->
+      <rect x="0" y="210" width="76" height="20" rx="4" fill="#3182CE"/>
+      <text x="38" y="224" text-anchor="middle" font-size="10" font-weight="700" fill="#FFF">REQUEST</text>
+
+      <!-- Browser → NGINX -->
+      <line x1="85" y1="244" x2="285" y2="244" stroke="#3182CE" stroke-width="2" marker-end="url(#arrow-grey)"/>
+      <text x="185" y="238" text-anchor="middle" font-size="11" font-weight="600" fill="#2B6CB0">GET /</text>
+
+      <!-- NGINX → Gateway -->
+      <line x1="285" y1="264" x2="515" y2="264" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+      <text x="400" y="258" text-anchor="middle" font-size="11" fill="#E53E3E">auth_request → /auth/check</text>
+
+      <!-- Gateway → Valkey: EXISTS -->
+      <line x1="515" y1="284" x2="735" y2="284" stroke="#805AD5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+      <text x="625" y="278" text-anchor="middle" font-size="11" fill="#6B46C1">EXISTS session:activity:{sub}</text>
+
+      <!-- Valkey → Gateway: 1 (alive) -->
+      <line x1="735" y1="304" x2="515" y2="304" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <rect x="590" y="293" width="80" height="20" rx="4" fill="#F0FFF4" stroke="#C6F6D5" stroke-width="1"/>
+      <text x="630" y="307" text-anchor="middle" font-size="11" font-weight="700" fill="#38A169">1 (alive)</text>
+
+      <!-- Gateway → Valkey: refresh TTL -->
+      <line x1="515" y1="330" x2="735" y2="330" stroke="#805AD5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+      <text x="625" y="324" text-anchor="middle" font-size="11" fill="#6B46C1">SET EX 15 (refresh TTL)</text>
+
+      <!-- Gateway → NGINX: 200 -->
+      <line x1="515" y1="356" x2="285" y2="356" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="400" y="350" text-anchor="middle" font-size="11" font-weight="600" fill="#38A169">200 OK + headers</text>
+
+      <!-- NGINX → Browser: 200 -->
+      <line x1="285" y1="376" x2="85" y2="376" stroke="#38A169" stroke-width="2" marker-end="url(#arrow-green)"/>
+      <text x="185" y="370" text-anchor="middle" font-size="11" font-weight="600" fill="#38A169">200 (page)</text>
+
+      <!-- ── Idle Period ── -->
+      <rect x="10" y="404" width="180" height="30" rx="6" fill="#FEFCBF" stroke="#F6E05E" stroke-width="1"/>
+      <text x="100" y="424" text-anchor="middle" font-size="12" font-weight="600" fill="#975A16">⏱  20 seconds idle ...</text>
+
+      <!-- Valkey: key expires -->
+      <rect x="670" y="404" width="150" height="30" rx="6" fill="#FED7E2" stroke="#FBB6CE" stroke-width="1"/>
+      <text x="745" y="424" text-anchor="middle" font-size="12" font-weight="700" fill="#97266D">KEY EXPIRES (TTL)</text>
+
+      <!-- ── Phase 3: EXPIRED REQUEST ── -->
+      <rect x="0" y="450" width="76" height="20" rx="4" fill="#E53E3E"/>
+      <text x="38" y="464" text-anchor="middle" font-size="10" font-weight="700" fill="#FFF">EXPIRED</text>
+
+      <!-- Browser → NGINX -->
+      <line x1="85" y1="484" x2="285" y2="484" stroke="#3182CE" stroke-width="2" marker-end="url(#arrow-grey)"/>
+      <text x="185" y="478" text-anchor="middle" font-size="11" font-weight="600" fill="#2B6CB0">GET /</text>
+
+      <!-- NGINX → Gateway -->
+      <line x1="285" y1="504" x2="515" y2="504" stroke="#E53E3E" stroke-width="2" stroke-dasharray="6,3" marker-end="url(#arrow-red)"/>
+      <text x="400" y="498" text-anchor="middle" font-size="11" fill="#E53E3E">auth_request → /auth/check</text>
+
+      <!-- Gateway → Valkey: EXISTS -->
+      <line x1="515" y1="524" x2="735" y2="524" stroke="#805AD5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+      <text x="625" y="518" text-anchor="middle" font-size="11" fill="#6B46C1">EXISTS session:activity:{sub}</text>
+
+      <!-- Valkey → Gateway: 0 (expired) -->
+      <line x1="735" y1="544" x2="515" y2="544" stroke="#E53E3E" stroke-width="2" marker-end="url(#arrow-red)"/>
+      <rect x="580" y="533" width="100" height="20" rx="4" fill="#FFF5F5" stroke="#FED7D7" stroke-width="1"/>
+      <text x="630" y="547" text-anchor="middle" font-size="11" font-weight="700" fill="#E53E3E">0 (expired!)</text>
+
+      <!-- Gateway: session.clear() -->
+      <rect x="530" y="560" width="130" height="22" rx="5" fill="#FFF5F5" stroke="#FEB2B2" stroke-width="1"/>
+      <text x="595" y="576" text-anchor="middle" font-size="11" font-weight="600" fill="#C53030">session.clear()</text>
+
+      <!-- Gateway → NGINX: 401 -->
+      <line x1="515" y1="596" x2="285" y2="596" stroke="#E53E3E" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+      <text x="400" y="590" text-anchor="middle" font-size="11" font-weight="700" fill="#E53E3E">401 EXPIRED</text>
+
+      <!-- NGINX → Browser: 401 -->
+      <line x1="285" y1="616" x2="85" y2="616" stroke="#E53E3E" stroke-width="2.5" marker-end="url(#arrow-red)"/>
+      <text x="185" y="610" text-anchor="middle" font-size="11" font-weight="700" fill="#E53E3E">401 JSON</text>
+
+      <!-- Success banner -->
+      <rect x="130" y="640" width="690" height="36" rx="8" fill="#F0FFF4" stroke="#9AE6B4" stroke-width="1.5"/>
+      <text x="475" y="658" text-anchor="middle" font-size="12" font-weight="600" fill="#276749">Valkey native TTL expiry = the clock. No cookie state needed. Works behind NGINX auth_request.</text>
+      <text x="475" y="672" text-anchor="middle" font-size="11" fill="#48BB78">Each successful auth_check refreshes TTL → sliding window idle timeout.</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════ -->
+<!-- SECTION 4: CHANGES SUMMARY                      -->
+<!-- ════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title changes">Code Changes Summary</div>
+  <div class="changes-grid">
+    <div class="change-card gateway">
+      <span class="label gw">Gateway</span>
+      <div class="change-file">routes/auth.py — /auth/check endpoint</div>
+      <div class="change-desc">Added Valkey-based idle timeout: EXISTS key → alive? refresh TTL → expired? return 401</div>
+      <div class="change-why">Enforce idle timeout on the path NGINX actually calls (not bypassed by middleware)</div>
+    </div>
+    <div class="change-card gateway">
+      <span class="label gw">Gateway</span>
+      <div class="change-file">routes/auth.py — OIDC callback</div>
+      <div class="change-desc">Seed session:activity:{sub} key in Valkey with TTL = SESSION_IDLE_TIMEOUT after login</div>
+      <div class="change-why">Initialize the activity key so first auth_check finds it (not a false expiry)</div>
+    </div>
+    <div class="change-card gateway">
+      <span class="label gw">Gateway</span>
+      <div class="change-file">routes/dev_auth.py — dev login</div>
+      <div class="change-desc">Same activity key seeding for the dev auth bypass path</div>
+      <div class="change-why">Dev/test login needs the same idle timeout initialization as OIDC</div>
+    </div>
+    <div class="change-card ui">
+      <span class="label tui">Template-UI</span>
+      <div class="change-file">lib/streaming/StreamingManager.ts</div>
+      <div class="change-desc">Handle 401 from SSE stream by calling notifySessionExpired()</div>
+      <div class="change-why">SSE used raw fetch() — 401 was caught as generic error, Session Expired modal never appeared</div>
+    </div>
+    <div class="change-card ui">
+      <span class="label tui">Template-UI</span>
+      <div class="change-file">e2e/fixtures/auth.ts + e2e/.env</div>
+      <div class="change-desc">Flush rate limit keys on setup; increase RATE_LIMIT_REQUESTS to 10000</div>
+      <div class="change-why">Prevent 429 rate limiting during serial Playwright test retries</div>
+    </div>
+    <div class="change-card ui">
+      <span class="label tui">Template-UI</span>
+      <div class="change-file">e2e/tests/auth-lifecycle.spec.ts</div>
+      <div class="change-desc">Use / instead of /auth/me for expiry checks; fix logout assertion; trigger modal via chat</div>
+      <div class="change-why">Tests now match actual NGINX auth_request flow (not bypassed endpoints)</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
