@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" id="favicon" href="/favicon.ico" />
+    <title>Deep Agent</title>
+    <link rel="stylesheet" href="/dist/frontend/template-ui.css">
+    <script>
+    (function() {
+      try {
+        var stored = localStorage.getItem('template-ui-settings');
+        var theme = stored ? JSON.parse(stored).theme : 'dark';
+      } catch(e) {
+        var theme = 'dark';
+      }
+      if (theme === 'dark') {
+        document.documentElement.classList.add('dark', 'pf-v6-theme-dark');
+      }
+    })();
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+    <script>
+    window.USER_DATA = {};
+    window.APP_DATA = { apiUrl: "", basePath: "/" };
+    // Check auth — redirect to SSO if not authenticated
+    fetch('/auth/me', { credentials: 'include' })
+      .then(function(r) {
+        if (!r.ok) {
+          // Not authenticated — redirect to SSO login
+          window.location.href = '/auth/login?redirect=' + encodeURIComponent(window.location.pathname);
+          return null;
+        }
+        return r.json();
+      })
+      .then(function(user) {
+        if (!user) return; // redirecting to login
+        window.USER_DATA = user;
+        window.USER_DATA.name = user.name || '';
+        window.USER_DATA.email = user.email || '';
+        window.USER_DATA.preferred_username = user.preferred_username || user.email?.split('@')[0] || '';
+        var s = document.createElement('script');
+        s.src = '/dist/frontend/main.umd.js?v=' + Date.now().toString(36);
+        document.body.appendChild(s);
+      })
+      .catch(function() {
+        window.location.href = '/auth/login?redirect=' + encodeURIComponent(window.location.pathname);
+      });
+    </script>
+</body>
+</html>

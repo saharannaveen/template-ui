@@ -1,0 +1,90 @@
+# Full-stack integration test: Gateway + Template-UI + Valkey + nginx
+# Gateway handles auth + serves UI. Template-UI BFF handles API proxying to agent.
+# Single entry point on :8080 (like production).
+#
+# Usage:
+#   1. Copy gateway.env.example to gateway.env and fill in SSO credentials
+#   2. Start template-agent on host (port 5002)
+#   3. Run: bash setup.sh
+#   4. Open http://localhost:8080 — redirects to SSO login
+#   5. After testing: bash teardown.sh
+
+services:
+  valkey:
+    image: docker.io/valkey/valkey:8-alpine
+    ports:
+      - "6399:6379"
+    command: ["valkey-server", "--protected-mode", "no", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+    networks:
+      - fullstack
+
+  gateway:
+    build:
+      context: ${GATEWAY_SRC_PATH:-../../../Dev Loop/agentforge/components/gateway}
+      dockerfile: Containerfile
+      target: image-standalone
+    env_file:
+      - gateway.env
+    volumes:
+      - ./gateway-dist:/app/dist:ro
+    depends_on:
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - fullstack
+
+  template-ui:
+    build:
+      context: ../..
+      dockerfile: Containerfile
+    environment:
+      PORT: 5003
+      AUTH_ENABLED: "false"
+      AGENT_HOST: http://host.containers.internal:5002
+      COOKIE_SIGN: fullstack-test-cookie-sign-secret-must-be-32-chars-long-minimum
+      NODE_ENV: production
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "curl -sf http://127.0.0.1:5003/_health"]
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+    networks:
+      - fullstack
+
+  nginx:
+    image: docker.io/nginx:1-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      gateway:
+        condition: service_healthy
+      template-ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q -O /dev/null http://127.0.0.1:80/health"]
+      interval: 3s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fullstack
+
+networks:
+  fullstack:
+    driver: bridge

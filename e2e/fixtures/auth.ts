@@ -100,8 +100,11 @@ export const test = base.extend<AuthFixtures>({
 
   waitForSessionExpiry: async ({ page }, use) => {
     const waitFn = async () => {
-      // Gateway is configured with SESSION_IDLE_TIMEOUT=15s
-      await page.waitForTimeout(16_000);
+      // Gateway is configured with SESSION_IDLE_TIMEOUT=15s.
+      // Wait 20s (not 16s) because prior SSE streaming refreshes the
+      // Valkey TTL via auth_request — the actual idle period starts
+      // after the last nginx-proxied request, not when JS calls this.
+      await page.waitForTimeout(20_000);
     };
     await use(waitFn);
   },

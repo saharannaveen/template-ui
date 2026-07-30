@@ -23,4 +23,8 @@ dist-ssr
 *.sln
 *.sw?
 .env
+e2e/fullstack/gateway.env
+e2e/fullstack/gateway-dist/frontend/
+playwright-report/
+test-results/
 ROADMAP.md
