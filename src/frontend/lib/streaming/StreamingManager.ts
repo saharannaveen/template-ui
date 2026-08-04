@@ -3,6 +3,7 @@ import type { Message } from '@langchain/langgraph-sdk';
 import { parseRetryAfterSeconds, triggerRateLimit } from '@/services/authenticated-fetch';
 import { buildAgentApiUrl } from '../app-paths';
 import type { HITLInterruptValue } from '@/types/deep-agent';
+import type { WorkflowProgressEvent } from '@/types/workflow-progress';
 
 import type { SSEEvent } from './SSEProcessor';
 import { SSEProcessor } from './SSEProcessor';
@@ -48,6 +49,7 @@ export type StreamCallback = {
   onDone: () => void;
   onMcpStatus?: (event: McpStreamStatusEvent) => void;
   onMetadata?: (data: StreamMetadataPayload) => void;
+  onWorkflowProgress?: (event: WorkflowProgressEvent) => void;
 };
 
 export class StreamingManager {
@@ -81,6 +83,10 @@ export class StreamingManager {
         }
         case 'metadata': {
           callbacks.onMetadata?.(event.data);
+          break;
+        }
+        case 'workflow_progress': {
+          callbacks.onWorkflowProgress?.(event.data);
           break;
         }
         case 'chunk': {

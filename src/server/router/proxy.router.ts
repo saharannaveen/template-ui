@@ -381,7 +381,7 @@ async function proxyRoutes(fastify: FastifyInstance) {
 
         const runBody: Record<string, unknown> = {
           assistant_id: 'agent',
-          stream_mode: ['messages', 'updates'],
+          stream_mode: ['messages', 'updates', 'custom'],
         };
         if (isResume) {
           runBody.command = { resume: message };
@@ -532,6 +532,20 @@ async function proxyRoutes(fastify: FastifyInstance) {
                   reply.raw.write(`event: mcp_status\ndata: ${JSON.stringify(parsed)}\n\n`);
                   chunkId++;
                   continue;
+                }
+
+                if (
+                  sseType === 'custom' &&
+                  typeof parsed === 'object' &&
+                  parsed !== null &&
+                  !Array.isArray(parsed)
+                ) {
+                  const customType = (parsed as Record<string, unknown>).type;
+                  if (customType === 'workflow_progress' || customType === 'subagent') {
+                    reply.raw.write(`data: ${JSON.stringify({ ...(parsed as Record<string, unknown>), chunk_id: chunkId })}\n\n`);
+                    chunkId++;
+                    continue;
+                  }
                 }
 
                 // Reset per-message state before translation

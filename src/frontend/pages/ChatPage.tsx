@@ -9,6 +9,7 @@ import {
   selectIsLoadingThreads,
   selectChatsError,
   selectStreamingState,
+  selectWorkflowExecution,
   setMessageFeedback,
   updateChat,
   updateStreamingState,
@@ -24,6 +25,7 @@ import { InterruptBanner } from '../components/InterruptBanner';
 import { TaskProgressStepper } from '../components/TaskProgressStepper';
 import { TasksSidebar } from '../components/TasksSidebar';
 import { DebugPanel } from '../components/DebugPanel';
+import { ExecutionOverlay } from '../components/ExecutionOverlay';
 import { ProcessedEvent } from '../components/ActivityTimeline';
 import { getThreadState } from '../services/agent-rest';
 import { isClientCreatedChat } from '../services/newChatTracker';
@@ -45,7 +47,9 @@ export function ChatPage({ threadId }: { threadId: string }) {
   const error = useAppSelector(selectChatsError);
   const debugMode = useAppSelector(selectDebugMode);
   const streamingState = useAppSelector((state) => selectStreamingState(state, threadId));
+  const workflowExecution = useAppSelector((state) => selectWorkflowExecution(state, threadId));
 
+  const [overlayOpen, setOverlayOpen] = useState(false);
   const [processedEventsTimeline, setProcessedEventsTimeline] = useState<ProcessedEvent[]>([]);
   const [historicalActivities, setHistoricalActivities] = useState<Record<string, ProcessedEvent[]>>({});
   const [hydrating, setHydrating] = useState(false);
@@ -401,6 +405,13 @@ export function ChatPage({ threadId }: { threadId: string }) {
     onExportChat: handleExportShortcut,
   });
 
+  useEffect(() => {
+    if (workflowExecution && !overlayOpen) {
+      setOverlayOpen(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowExecution]);
+
   if (chatsLoading || hydrating) {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-4">
@@ -446,6 +457,17 @@ export function ChatPage({ threadId }: { threadId: string }) {
         <div className="flex-1 flex flex-col min-w-0">
           {hasToolCalls && (
             <TaskProgressStepper messages={thread.messages} isLoading={thread.isLoading} />
+          )}
+          {workflowExecution && (
+            <div className="px-4 py-1">
+              <Button
+                variant="link"
+                size="sm"
+                onClick={() => setOverlayOpen(true)}
+              >
+                {workflowExecution.status === 'running' ? 'View workflow progress...' : 'View workflow results'}
+              </Button>
+            </div>
           )}
           <ReconnectingBanner streamingState={streamingState} maxRetries={MAX_RETRIES} />
           <ChatMessagesView
@@ -514,6 +536,11 @@ export function ChatPage({ threadId }: { threadId: string }) {
           </div>
         )}
       </div>
+      <ExecutionOverlay
+        isOpen={overlayOpen}
+        onClose={() => setOverlayOpen(false)}
+        execution={workflowExecution}
+      />
     </ChatErrorBoundary>
   );
 }

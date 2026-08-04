@@ -27,6 +27,8 @@ import { selectActiveRules, selectMemories } from '@/redux/slices/personalizatio
 import { selectAlwaysAllowedTools } from '@/redux/slices/userSettings';
 import { isSubAgentToolCall, extractSubAgentName } from '@/types/deep-agent';
 import type { HITLInterruptValue, InterruptInfo } from '@/types/deep-agent';
+import { applyWorkflowEvent } from '@/types/workflow-progress';
+import type { WorkflowExecution } from '@/types/workflow-progress';
 import { getThreadState } from '@/services/agent-rest';
 
 function enrichInterrupt(interrupt: InterruptPayload): InterruptInfo {
@@ -180,6 +182,7 @@ export function useStreamingAPI(threadId: string) {
   threadIdRef.current = threadId;
   const chatRef = useRef(chat);
   chatRef.current = chat;
+  const workflowExecutionRef = useRef<WorkflowExecution | null>(null);
 
   if (!managerRef.current) {
     managerRef.current = getStreamingManager(threadId);
@@ -530,6 +533,11 @@ export function useStreamingAPI(threadId: string) {
             onMetadata(data) {
               setTraceId(data.trace_id);
             },
+            onWorkflowProgress(evt) {
+              const next = applyWorkflowEvent(workflowExecutionRef.current, evt);
+              workflowExecutionRef.current = next;
+              dispatch(updateStreamingState({ chatId: threadId, state: { workflowExecution: next } }));
+            },
           };
 
           manager.stream(streamRequest, callbacks).then(() => {
@@ -691,6 +699,11 @@ export function useStreamingAPI(threadId: string) {
         },
         onMetadata(data) {
           setTraceId(data.trace_id);
+        },
+        onWorkflowProgress(evt) {
+          const next = applyWorkflowEvent(workflowExecutionRef.current, evt);
+          workflowExecutionRef.current = next;
+          dispatch(updateStreamingState({ chatId: threadId, state: { workflowExecution: next } }));
         },
       };
 

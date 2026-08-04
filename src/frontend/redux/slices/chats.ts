@@ -1,6 +1,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import type { Message } from '@langchain/langgraph-sdk';
 import type { SubAgentInfo, InterruptInfo, TaskStep } from '../../types/deep-agent';
+import type { WorkflowExecution } from '../../types/workflow-progress';
 
 export interface StreamingState {
   isLoading: boolean;
@@ -14,6 +15,7 @@ export interface StreamingState {
   isReconnecting: boolean;
   reconnectAttempt: number;
   streamDroppedMidResponse: boolean;
+  workflowExecution: WorkflowExecution | null;
 }
 
 export interface ChatItem {
@@ -47,6 +49,7 @@ const DEFAULT_STREAMING_STATE: StreamingState = {
   isReconnecting: false,
   reconnectAttempt: 0,
   streamDroppedMidResponse: false,
+  workflowExecution: null,
 };
 
 const initialState: ChatsState = {
@@ -235,6 +238,10 @@ export function selectThreadsListHydrated(state: { chats: ChatsState }) {
 
 export function selectChatsError(state: { chats: ChatsState }) {
   return state.chats.error;
+}
+
+export function selectWorkflowExecution(state: { chats: ChatsState }, chatId: string): WorkflowExecution | null {
+  return state.chats.streamingStates[chatId]?.workflowExecution ?? null;
 }
 
 export default chatsSlice.reducer;

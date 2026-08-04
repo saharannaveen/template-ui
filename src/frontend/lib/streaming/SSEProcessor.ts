@@ -1,5 +1,6 @@
 import type { Message } from '@langchain/langgraph-sdk';
 import type { HITLInterruptValue } from '@/types/deep-agent';
+import type { WorkflowProgressEvent } from '@/types/workflow-progress';
 
 export type SSEChunk =
   | { type: 'token'; content: string; chunk_id: number }
@@ -22,6 +23,7 @@ export type SSEEvent =
   | { kind: 'chunk'; data: SSEChunk }
   | { kind: 'mcp_status'; data: McpStatusData }
   | { kind: 'metadata'; data: SSEMetadataPayload }
+  | { kind: 'workflow_progress'; data: WorkflowProgressEvent }
   | { kind: 'done' }
   | { kind: 'error'; message: string };
 
@@ -181,6 +183,51 @@ export class SSEProcessor {
       if (metadata) {
         events.push({ kind: 'metadata', data: metadata });
         continue;
+      }
+
+      // Detect workflow_progress and subagent custom SSE events
+      if (isRecord(parsed)) {
+        const pType = parsed.type;
+
+        if (pType === 'workflow_progress') {
+          const evtData = parsed.data as Record<string, unknown> | undefined;
+          const wfEvent = parsed.event as string | undefined;
+          if (wfEvent === 'workflow_start' || wfEvent === 'workflow_end') {
+            events.push({
+              kind: 'workflow_progress',
+              data: { event: wfEvent, data: evtData } as WorkflowProgressEvent,
+            });
+            continue;
+          }
+        }
+
+        if (pType === 'subagent') {
+          const phase = parsed.phase as string | undefined;
+          const saId = (parsed.id ?? '') as string;
+          const saType = (parsed.subagent_type ?? 'subagent') as string;
+          const saLabel = (parsed.label ?? '') as string;
+
+          if (phase === 'start') {
+            events.push({
+              kind: 'workflow_progress',
+              data: {
+                event: 'subagent_start',
+                data: { id: saId, subagent_type: saType, name: `${saType} -> ${saLabel}` },
+              },
+            });
+            continue;
+          }
+          if (phase === 'complete') {
+            events.push({
+              kind: 'workflow_progress',
+              data: {
+                event: 'subagent_end',
+                data: { id: saId, duration_ms: (parsed.duration_ms as number) ?? undefined },
+              },
+            });
+            continue;
+          }
+        }
       }
 
       const chunk = parseSSEChunkPayload(parsed);
