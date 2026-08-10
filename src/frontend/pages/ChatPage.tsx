@@ -27,6 +27,7 @@ import { TasksSidebar } from '../components/TasksSidebar';
 import { DebugPanel } from '../components/DebugPanel';
 import { ExecutionOverlay } from '../components/ExecutionOverlay';
 import { ProcessedEvent } from '../components/ActivityTimeline';
+import { CostTracker } from '../components/CostTracker';
 import { getThreadState } from '../services/agent-rest';
 import { isClientCreatedChat } from '../services/newChatTracker';
 import { getThreadFeedback } from '../services/feedback-api';
@@ -459,15 +460,26 @@ export function ChatPage({ threadId }: { threadId: string }) {
             <TaskProgressStepper messages={thread.messages} isLoading={thread.isLoading} />
           )}
           {workflowExecution && (
-            <div className="px-4 py-1">
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setOverlayOpen(true)}
-              >
-                {workflowExecution.status === 'running' ? 'View workflow progress...' : 'View workflow results'}
-              </Button>
-            </div>
+            <>
+              <div className="px-4 py-1">
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setOverlayOpen(true)}
+                >
+                  {workflowExecution.status === 'running' ? 'View workflow progress...' : 'View workflow results'}
+                </Button>
+              </div>
+              {workflowExecution.cost_updates && workflowExecution.cost_updates.length > 0 && (
+                <div className="px-4 py-2">
+                  <CostTracker
+                    updates={workflowExecution.cost_updates}
+                    maxBudget={workflowExecution.max_budget || 10.0}
+                    variant="compact"
+                  />
+                </div>
+              )}
+            </>
           )}
           <ReconnectingBanner streamingState={streamingState} maxRetries={MAX_RETRIES} />
           <ChatMessagesView

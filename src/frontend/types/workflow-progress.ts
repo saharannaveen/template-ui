@@ -1,5 +1,7 @@
 /** Types and reducer for real-time workflow execution overlay. */
 
+import type { CostUpdate } from './cost';
+
 export interface WorkflowSubagent {
   id: string;
   subagentType: string;
@@ -18,13 +20,17 @@ export interface WorkflowExecution {
   workflowId: string;
   status: 'running' | 'complete';
   steps: WorkflowStep[];
+  cost_updates?: CostUpdate[];
+  max_budget?: number;
 }
 
 export type WorkflowProgressEvent =
-  | { event: 'workflow_start'; data: { workflow_id: string; steps: Array<{ name: string }> } }
+  | { event: 'workflow_start'; data: { workflow_id: string; steps: Array<{ name: string }>; max_budget?: number } }
   | { event: 'subagent_start'; data: { id: string; subagent_type: string; name: string; step_index?: number } }
   | { event: 'subagent_end'; data: { id: string; duration_ms?: number } }
-  | { event: 'workflow_end'; data: { workflow_id: string } };
+  | { event: 'workflow_end'; data: { workflow_id: string } }
+  | { event: 'cost_update'; data: CostUpdate }
+  | { event: 'loop_iteration'; data: { iteration: number; status: 'passed' | 'failed' } };
 
 /**
  * Pure reducer: apply a single WorkflowProgressEvent to produce the next WorkflowExecution state.
@@ -45,6 +51,8 @@ export function applyWorkflowEvent(
         workflowId: evt.data.workflow_id,
         status: 'running',
         steps,
+        cost_updates: [],
+        max_budget: evt.data.max_budget ?? 10.0,
       };
     }
 
@@ -98,6 +106,18 @@ export function applyWorkflowEvent(
         subagents: s.subagents.map((sa) => ({ ...sa, status: 'complete' as const })),
       }));
       return { ...prev, status: 'complete', steps };
+    }
+
+    case 'cost_update': {
+      const prev = current ?? { workflowId: '', status: 'running' as const, steps: [], cost_updates: [] };
+      const cost_updates = [...(prev.cost_updates ?? []), evt.data];
+      return { ...prev, cost_updates };
+    }
+
+    case 'loop_iteration': {
+      // loop_iteration events are handled via cost_update events
+      // This is a no-op for now, but kept for future extensibility
+      return current ?? { workflowId: '', status: 'running', steps: [] };
     }
 
     default:

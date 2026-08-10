@@ -27,6 +27,10 @@ import { ArtifactViewer } from "./ArtifactViewer";
 import { TodoStrip } from "./TodoStrip";
 import { FeedbackButtons } from "./FeedbackButtons";
 import { CustomDataRenderer } from "./CustomDataRenderer";
+import { VoicePlayButton } from "./VoicePlayButton";
+import { UsageSummary } from "./UsageSummary";
+import { useAppSelector } from "../redux/hooks";
+import { selectVoiceEnabled } from "../redux/slices/voice";
 
 function extractMessageText(content: unknown): string {
   if (typeof content === 'string') return content;
@@ -620,6 +624,22 @@ export function AIMessageRenderer({ message, pendingInterrupt, onInterruptResume
                                     </pre>
                                   );
                                 })()}
+                                {(() => {
+                                  const additionalKwargs = (toolCall as any).additional_kwargs;
+                                  const claudeCodeResult = additionalKwargs?.claude_code_result;
+                                  if (claudeCodeResult?.usage_summary) {
+                                    return (
+                                      <div className="mt-3">
+                                        <UsageSummary
+                                          summary={claudeCodeResult.usage_summary}
+                                          iterations={claudeCodeResult.cost_updates || []}
+                                          compact
+                                        />
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                })()}
                               </>
                             )}
                           </div>
@@ -764,6 +784,7 @@ export function ChatMessagesView({
   const prevPendingInterrupt = useRef(pendingInterrupt);
   const prevIsLoading = useRef(isLoading);
   const [srAnnouncement, setSrAnnouncement] = useState('');
+  const voiceEnabled = useAppSelector(selectVoiceEnabled);
 
   useEffect(() => {
     if (prevPendingInterrupt.current && !pendingInterrupt) {
@@ -906,6 +927,7 @@ export function ChatMessagesView({
                   {isLastAiInTurn && (
                     <div className="pl-11 flex items-center gap-0.5 mt-1">
                       <MessageCopyButton text={copyText} />
+                      {voiceEnabled && <VoicePlayButton text={copyText} />}
                       <FeedbackButtons
                         messageId={message.id ?? `msg-${messageIndex}`}
                         chatId={chatId}

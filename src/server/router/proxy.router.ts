@@ -438,9 +438,47 @@ async function proxyRoutes(fastify: FastifyInstance) {
         const sentMsgIds = new Set<string>();
         const completedTexts: string[] = [];
 
+        // Subscribe to Redis pub/sub for workflow events
+        let redisSubscriber: any = null;
+        try {
+          const { getRedisClient } = await import('../utils/redis.js');
+          const redisClient = getRedisClient();
+          if (redisClient) {
+            redisSubscriber = redisClient.duplicate();
+            await redisSubscriber.connect();
+
+            // Subscribe to workflow notifications for this user
+            const notificationChannel = `loop-engineering:notifications:${user_id || 'anonymous'}`;
+            await redisSubscriber.subscribe(notificationChannel, (message: string) => {
+              if (clientGone) return;
+              try {
+                const event = JSON.parse(message);
+                // Inject workflow event into SSE stream
+                const workflowChunk = {
+                  type: 'workflow_progress',
+                  event: event.type,
+                  data: event,
+                  chunk_id: chunkId++,
+                };
+                reply.raw.write(`data: ${JSON.stringify(workflowChunk)}\n\n`);
+              } catch (err) {
+                fastify.log.debug({ err, message }, 'Failed to parse Redis workflow event');
+              }
+            });
+            fastify.log.info({ traceId, notificationChannel }, 'Subscribed to workflow notifications');
+          }
+        } catch (err) {
+          fastify.log.warn({ traceId, err }, 'Failed to subscribe to Redis workflow notifications');
+        }
+
         reply.raw.on('close', () => {
           clientGone = true;
           reader.cancel().catch(() => {});
+          // Unsubscribe from Redis
+          if (redisSubscriber) {
+            redisSubscriber.unsubscribe().catch(() => {});
+            redisSubscriber.quit().catch(() => {});
+          }
         });
 
         let hasEmittedTextTokens = false;
@@ -804,6 +842,59 @@ async function proxyRoutes(fastify: FastifyInstance) {
     } catch (error) {
       fastify.log.error({ traceId, err: error }, 'Feedback proxy error');
       return reply.status(502).send({ error: 'Failed to send feedback' });
+    }
+  });
+
+  // ── Workflow & Notification proxy routes ──
+  fastify.all<{ Params: { '*': string } }>('/workflows/*', async (request, reply) => {
+    try {
+      const path = (request.params as any)['*'];
+      const agentUrl = `${getAgentHost()}/api/workflows/${path}`;
+      const fetchOpts: RequestInit = { method: request.method, headers: { 'Content-Type': 'application/json' } };
+      if (request.body && request.method !== 'GET' && request.method !== 'HEAD') {
+        fetchOpts.body = JSON.stringify(request.body);
+      }
+      const resp = await fetch(agentUrl, { ...fetchOpts, signal: AbortSignal.timeout(10000) });
+      reply.status(resp.status);
+      return reply.send(await resp.text());
+    } catch (error) {
+      return reply.status(502).send({ error: 'Workflow proxy error' });
+    }
+  });
+
+  fastify.get('/workflows', async (_request, reply) => {
+    try {
+      const resp = await fetch(`${getAgentHost()}/api/workflows`, { signal: AbortSignal.timeout(10000) });
+      reply.status(resp.status);
+      return reply.send(await resp.text());
+    } catch (error) {
+      return reply.status(502).send({ error: 'Workflow proxy error' });
+    }
+  });
+
+  fastify.all<{ Params: { '*': string } }>('/notifications/*', async (request, reply) => {
+    try {
+      const path = (request.params as any)['*'];
+      const agentUrl = `${getAgentHost()}/api/notifications/${path}`;
+      const fetchOpts: RequestInit = { method: request.method, headers: { 'Content-Type': 'application/json' } };
+      if (request.body && request.method !== 'GET' && request.method !== 'HEAD') {
+        fetchOpts.body = JSON.stringify(request.body);
+      }
+      const resp = await fetch(agentUrl, { ...fetchOpts, signal: AbortSignal.timeout(10000) });
+      reply.status(resp.status);
+      return reply.send(await resp.text());
+    } catch (error) {
+      return reply.status(502).send({ error: 'Notification proxy error' });
+    }
+  });
+
+  fastify.get('/notifications', async (_request, reply) => {
+    try {
+      const resp = await fetch(`${getAgentHost()}/api/notifications`, { signal: AbortSignal.timeout(10000) });
+      reply.status(resp.status);
+      return reply.send(await resp.text());
+    } catch (error) {
+      return reply.status(502).send({ error: 'Notification proxy error' });
     }
   });
 

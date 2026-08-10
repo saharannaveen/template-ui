@@ -1,21 +1,23 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@patternfly/react-core';
-import { ArrowLeft, User, Brain, ScrollText, Palette, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, User, Brain, ScrollText, Palette, ShieldCheck, Volume2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSection } from '../components/settings/ProfileSection';
 import { MemoryList } from '../components/settings/MemoryList';
 import { RulesEditor } from '../components/settings/RulesEditor';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
 import { AlwaysAllowedTools } from '../components/settings/AlwaysAllowedTools';
+import { VoiceSettings } from '../components/settings/VoiceSettings';
 
-type TabId = 'profile' | 'memories' | 'rules' | 'appearance' | 'tool-approvals';
+type TabId = 'profile' | 'memories' | 'rules' | 'appearance' | 'tool-approvals' | 'voice';
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'memories', label: 'Memories', icon: Brain },
   { id: 'rules', label: 'Custom Rules', icon: ScrollText },
   { id: 'appearance', label: 'Appearance', icon: Palette },
+  { id: 'voice', label: 'Voice', icon: Volume2 },
   { id: 'tool-approvals', label: 'Tool Approvals', icon: ShieldCheck },
 ];
 
@@ -24,6 +26,7 @@ const TAB_CONTENT: Record<TabId, React.FC> = {
   memories: MemoryList,
   rules: RulesEditor,
   appearance: AppearanceSettings,
+  voice: VoiceSettings,
   'tool-approvals': AlwaysAllowedTools,
 };
 

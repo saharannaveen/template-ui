@@ -4,6 +4,9 @@ import configReducer from './slices/config';
 import personalizationReducer from './slices/personalization';
 import toastsReducer from './slices/toasts';
 import userSettingsReducer from './slices/userSettings';
+import workflowsReducer from './slices/workflows';
+import notificationsReducer from './slices/notifications';
+import voiceReducer from './slices/voice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +15,9 @@ export const store = configureStore({
     personalization: personalizationReducer,
     toasts: toastsReducer,
     userSettings: userSettingsReducer,
+    workflows: workflowsReducer,
+    notifications: notificationsReducer,
+    voice: voiceReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

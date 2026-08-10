@@ -11,12 +11,15 @@ import {
   SearchInput,
   Tooltip,
 } from '@patternfly/react-core';
-import { Loader2, MessageSquare, Trash2, Edit3, Plus, Settings, LogOut } from 'lucide-react';
+import { Loader2, MessageSquare, Trash2, Edit3, Plus, Settings, LogOut, Bell, Workflow } from 'lucide-react';
 import { logout } from '../services/logout';
 import { cn } from '@/lib/utils';
 import type { SidebarChatItem } from '../types/chat';
 import type { SubAgentInfo } from '../types/deep-agent';
 import { useAgentHealth } from '../hooks/useAgentHealth';
+import { useAppSelector } from '../redux/hooks';
+import { selectUnreadCount } from '../redux/slices/notifications';
+import { NotificationBadge } from './NotificationBadge';
 
 interface SidebarProps {
   userName?: string;
@@ -47,6 +50,7 @@ function SidebarComponent({
 }: SidebarProps) {
   const navigate = useNavigate();
   const agentHealth = useAgentHealth();
+  const unreadCount = useAppSelector(selectUnreadCount);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingChat, setEditingChat] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
@@ -80,6 +84,29 @@ function SidebarComponent({
         <Button variant="primary" isBlock onClick={onNewChat} aria-label="Start new chat" icon={<Plus className="w-4 h-4" />}>
           New Chat
         </Button>
+      </div>
+
+      {/* Navigation */}
+      <div className="shrink-0 px-3 py-2 space-y-1">
+        <button
+          type="button"
+          onClick={() => navigate('/workflows')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:bg-secondary/50 rounded-lg transition-colors"
+          aria-label="View workflows"
+        >
+          <Workflow className="w-4 h-4" />
+          <span>Workflows</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate('/notifications')}
+          className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground/70 hover:text-foreground hover:bg-secondary/50 rounded-lg transition-colors"
+          aria-label="View notifications"
+        >
+          <Bell className="w-4 h-4" />
+          <span>Notifications</span>
+          {unreadCount > 0 && <NotificationBadge count={unreadCount} />}
+        </button>
       </div>
 
       {/* Search */}

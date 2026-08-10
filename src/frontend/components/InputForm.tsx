@@ -2,6 +2,9 @@ import { forwardRef, useState, type FormEvent, type KeyboardEvent } from "react"
 import { SquarePen, ArrowUp, StopCircle } from "lucide-react";
 import { Alert } from "@patternfly/react-core";
 import { buildAppPath } from '../lib/app-paths';
+import { VoiceMicButton } from './VoiceMicButton';
+import { useAppSelector } from '../redux/hooks';
+import { selectVoiceEnabled } from '../redux/slices/voice';
 
 interface InputFormProps {
   onSubmit: (inputValue: string) => void;
@@ -26,6 +29,7 @@ export const InputForm = forwardRef<HTMLTextAreaElement, InputFormProps>(functio
   ref,
 ) {
   const [internalInputValue, setInternalInputValue] = useState("");
+  const voiceEnabled = useAppSelector(selectVoiceEnabled);
 
   const handleInternalSubmit = (e?: FormEvent) => {
     if (e) e.preventDefault();
@@ -70,6 +74,14 @@ export const InputForm = forwardRef<HTMLTextAreaElement, InputFormProps>(functio
           rows={1}
         />
         <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+          {voiceEnabled && !isLoading && (
+            <VoiceMicButton
+              onTranscript={(text) => {
+                setInternalInputValue(text);
+              }}
+              disabled={isRateLimited}
+            />
+          )}
           {isLoading ? (
             <button
               type="button"

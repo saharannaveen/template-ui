@@ -6,6 +6,9 @@ import { AppLayout } from './components/layout/AppLayout';
 import { HomePage } from './pages/HomePage';
 import { ChatRoutePage } from './pages/ChatPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { WorkflowsListPage } from './pages/WorkflowsListPage';
+import { WorkflowDetailPage } from './pages/WorkflowDetailPage';
+import { NotificationsPage } from './pages/NotificationsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { ToastNotifications } from './components/ToastNotifications';
 import { useThemeSync } from './hooks/useThemeSync';
@@ -92,6 +95,9 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/chat" element={<Navigate to="/" replace />} />
           <Route path="/chat/:threadId" element={<ChatRoutePage />} />
+          <Route path="/workflows" element={<WorkflowsListPage />} />
+          <Route path="/workflows/:workflowId" element={<WorkflowDetailPage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
           <Route path="/settings" element={<SettingsPage />} />
         </Routes>
       </AppLayout>
