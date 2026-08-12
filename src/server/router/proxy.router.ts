@@ -898,6 +898,62 @@ async function proxyRoutes(fastify: FastifyInstance) {
     }
   });
 
+  // SSE endpoint for real-time workflow events (persistent Redis subscription)
+  fastify.get<{ Params: { threadId: string } }>('/events/:threadId', async (request, reply) => {
+    const threadId = request.params.threadId;
+    const userId = (request.query as Record<string, string>).user_id || 'anonymous';
+
+    reply.raw.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+    reply.raw.write(':ok\n\n');
+
+    let redisSubscriber: any = null;
+    let closed = false;
+
+    const heartbeat = setInterval(() => {
+      if (!closed) reply.raw.write(':heartbeat\n\n');
+    }, 15000);
+
+    try {
+      const { getRedisClient } = await import('../utils/redis.js');
+      const redisClient = getRedisClient();
+      if (redisClient) {
+        redisSubscriber = redisClient.duplicate();
+        await redisSubscriber.connect();
+
+        const channel = `loop-engineering:notifications:${userId}`;
+        await redisSubscriber.subscribe(channel, (message: string) => {
+          if (closed) return;
+          try {
+            const event = JSON.parse(message);
+            reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+          } catch {}
+        });
+        fastify.log.info({ threadId, channel }, 'SSE events subscription started');
+      }
+    } catch (err) {
+      fastify.log.warn({ err }, 'Failed to set up SSE events subscription');
+    }
+
+    reply.raw.on('close', async () => {
+      closed = true;
+      clearInterval(heartbeat);
+      if (redisSubscriber) {
+        try {
+          await redisSubscriber.unsubscribe();
+          await redisSubscriber.quit();
+        } catch {}
+      }
+    });
+
+    // Keep connection open — Fastify won't auto-close since we wrote to raw
+    await new Promise(() => {});
+  });
+
   fastify.get('/health/agent', async (request, reply) => {
     try {
       const agentResponse = await fetch(`${getAgentHost()}/health`, {

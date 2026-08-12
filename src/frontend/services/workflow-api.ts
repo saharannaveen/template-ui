@@ -1,7 +1,79 @@
 /** API client for Loop Engineering workflows */
 
 import { authenticatedFetch } from './authenticated-fetch';
-import type { Workflow, WorkflowAction } from '../types/workflow';
+import type { Workflow, WorkflowAction, WorkflowPhase, WorkflowStatus } from '../types/workflow';
+
+/** Map backend phase values to SDLC phases the UI stepper expects. */
+function mapBackendPhase(phase: unknown): WorkflowPhase {
+  switch (phase) {
+    case 'initializing':
+    case 'creating_sandbox':
+    case 'ready':
+      return 'estimate';
+    case 'planning':
+      return 'plan';
+    case 'designing':
+      return 'design';
+    case 'active':
+    case 'implementing':
+      return 'implement';
+    case 'testing':
+      return 'test';
+    case 'idle':
+    case 'hibernated':
+    case 'task_complete':
+    case 'complete':
+    case 'completed':
+      return 'done';
+    default:
+      return 'implement';
+  }
+}
+
+/** Map backend status values to the WorkflowStatus union the UI expects. */
+function mapBackendStatus(status: unknown): WorkflowStatus {
+  switch (status) {
+    case 'running':
+    case 'active':
+    case 'ready':
+      return 'running';
+    case 'idle':
+    case 'hibernated':
+      return 'paused';
+    case 'failed':
+    case 'error':
+      return 'error';
+    case 'completed':
+    case 'complete':
+    case 'task_complete':
+      return 'complete';
+    case 'cancelled':
+      return 'cancelled';
+    default:
+      return 'running';
+  }
+}
+
+/** Map a single backend workflow record to the UI Workflow type. */
+function mapWorkflow(w: Record<string, unknown>): Workflow {
+  return {
+    id: (w.workflow_id as string) || '',
+    name: (w.task_name as string) || '',
+    status: mapBackendStatus(w.status),
+    currentPhase: mapBackendPhase(w.current_phase),
+    startedAt: (w.started_at as string) || '',
+    costUsd: (w.cost as number) || 0,
+    maxCostUsd: 25.0,
+    timeElapsedMs: 0,
+    model: '',
+    iteration: (w.iterations as number) || 0,
+    maxIterations: 5,
+    createdBy: (w.user_id as string) || 'unknown',
+    chatId: (w.thread_id as string) || '',
+    decisions: (w.decisions as Workflow['decisions']) || [],
+    artifacts: (w.artifacts as Workflow['artifacts']) || [],
+  };
+}
 
 export async function getAllWorkflows(): Promise<Workflow[]> {
   const response = await authenticatedFetch('/api/workflows', {
@@ -13,24 +85,7 @@ export async function getAllWorkflows(): Promise<Workflow[]> {
   }
 
   const data = await response.json();
-  // Map API fields (snake_case) to UI fields (camelCase)
-  return (data.workflows || []).map((w: Record<string, unknown>) => ({
-    id: w.workflow_id || '',
-    name: w.task_name || '',
-    status: w.status || 'running',
-    currentPhase: w.current_phase || 'initializing',
-    startedAt: w.started_at || '',
-    costUsd: w.cost || 0,
-    maxCostUsd: 25.0,
-    timeElapsedMs: 0,
-    model: '',
-    iteration: w.iterations || 0,
-    maxIterations: 5,
-    createdBy: w.user_id || 'unknown',
-    chatId: w.thread_id || '',
-    decisions: w.decisions || [],
-    artifacts: w.artifacts || [],
-  })) as Workflow[];
+  return (data.workflows || []).map((w: Record<string, unknown>) => mapWorkflow(w));
 }
 
 export async function getWorkflowDetail(workflowId: string): Promise<Workflow> {
@@ -42,8 +97,8 @@ export async function getWorkflowDetail(workflowId: string): Promise<Workflow> {
     throw new Error(`Failed to fetch workflow detail: ${response.statusText}`);
   }
 
-  const data = await response.json();
-  return data.workflow;
+  const w = await response.json();
+  return mapWorkflow(w as Record<string, unknown>);
 }
 
 export async function sendWorkflowAction(

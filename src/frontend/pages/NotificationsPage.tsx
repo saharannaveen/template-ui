@@ -23,6 +23,8 @@ export function NotificationsPage() {
 
   useEffect(() => {
     dispatch(fetchNotifications());
+    const interval = setInterval(() => dispatch(fetchNotifications()), 10000);
+    return () => clearInterval(interval);
   }, [dispatch]);
 
   const handleMarkAsRead = (id: string) => {

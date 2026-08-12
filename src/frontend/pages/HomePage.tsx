@@ -4,7 +4,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { Send } from 'lucide-react';
 import { useAppDispatch } from '../redux/hooks';
 import { addChat, ChatItem } from '../redux/slices/chats';
-import { QuickStartCards } from '../components/QuickStartCards';
 
 const QUICK_PROMPTS = [
   `What can ${window.APP_DATA?.agentName || 'Agent'} do for me?`,
@@ -17,7 +16,6 @@ export function HomePage() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [inputValue, setInputValue] = useState('');
-  const [showQuickStart, setShowQuickStart] = useState(true);
 
   const userData = useMemo(() => window.USER_DATA, []);
   const userDisplayName = userData?.displayName || userData?.given_name;
@@ -40,14 +38,6 @@ export function HomePage() {
     [dispatch, navigate],
   );
 
-  const handleQuickStartCard = useCallback(
-    (prompt: string) => {
-      setInputValue(prompt);
-      setShowQuickStart(false);
-    },
-    []
-  );
-
   const handleSubmit = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!inputValue.trim()) return;
@@ -66,64 +56,40 @@ export function HomePage() {
       {/* Center content area */}
       <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="max-w-5xl mx-auto">
-          {showQuickStart ? (
-            <>
-              {/* Greeting */}
-              <div className="mb-8 text-center">
-                <h1 className="text-foreground font-bold mb-3" style={{ fontSize: 'clamp(2rem, 5vw, 3rem)' }}>
-                  {userDisplayName ? (
-                    <>Hey {userDisplayName}! <span aria-hidden="true">👋</span></>
-                  ) : (
-                    <>Hey there! <span aria-hidden="true">👋</span></>
-                  )}
-                </h1>
-                <p className="text-muted-foreground text-base">
-                  <span className="font-medium text-foreground">{window.APP_DATA?.agentName || 'Agent'}</span> is ready to help. What would you like to explore today?
-                </p>
-              </div>
+          {/* Greeting */}
+          <div className="mb-8 text-center">
+            <h1 className="text-foreground font-bold mb-3" style={{ fontSize: 'clamp(2rem, 5vw, 3rem)' }}>
+              {userDisplayName ? (
+                <>Hey {userDisplayName}! <span aria-hidden="true">👋</span></>
+              ) : (
+                <>Hey there! <span aria-hidden="true">👋</span></>
+              )}
+            </h1>
+            <p className="text-muted-foreground text-base">
+              <span className="font-medium text-foreground">{window.APP_DATA?.agentName || 'Agent'}</span> is ready to help. What would you like to explore today?
+            </p>
+          </div>
 
-              {/* Quick Start Cards */}
-              <QuickStartCards onCardClick={handleQuickStartCard} />
-
-              {/* Divider */}
-              <div className="my-8 flex items-center gap-4">
-                <div className="flex-1 border-t border-border" />
-                <span className="text-sm text-muted-foreground">or start with a custom prompt</span>
-                <div className="flex-1 border-t border-border" />
-              </div>
-
-              {/* Quick prompts */}
-              <div className="mb-6">
-                <h2 className="text-sm font-semibold text-muted-foreground mb-3 text-center">
-                  Quick Prompts <span aria-hidden="true">🚀</span>
-                </h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl mx-auto" role="list" aria-label="Quick prompt suggestions">
-                  {QUICK_PROMPTS.map((prompt) => (
-                    <div key={prompt} role="listitem">
-                      <button
-                        type="button"
-                        onClick={() => startChat(prompt)}
-                        aria-label={`Start chat: ${prompt}`}
-                        className="w-full text-left p-3.5 rounded-xl border border-border bg-card hover:bg-secondary/50 transition-colors cursor-pointer"
-                      >
-                        <p className="text-sm text-foreground/90">{prompt}</p>
-                      </button>
-                    </div>
-                  ))}
+          {/* Quick prompts */}
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-muted-foreground mb-3 text-center">
+              Quick Prompts <span aria-hidden="true">🚀</span>
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-w-2xl mx-auto" role="list" aria-label="Quick prompt suggestions">
+              {QUICK_PROMPTS.map((prompt) => (
+                <div key={prompt} role="listitem">
+                  <button
+                    type="button"
+                    onClick={() => startChat(prompt)}
+                    aria-label={`Start chat: ${prompt}`}
+                    className="w-full text-left p-3.5 rounded-xl border border-border bg-card hover:bg-secondary/50 transition-colors cursor-pointer"
+                  >
+                    <p className="text-sm text-foreground/90">{prompt}</p>
+                  </button>
                 </div>
-              </div>
-            </>
-          ) : (
-            <div className="max-w-2xl mx-auto text-center mb-8">
-              <button
-                type="button"
-                onClick={() => setShowQuickStart(true)}
-                className="text-primary hover:underline text-sm mb-4"
-              >
-                ← Back to quick start
-              </button>
+              ))}
             </div>
-          )}
+          </div>
         </div>
       </div>
 

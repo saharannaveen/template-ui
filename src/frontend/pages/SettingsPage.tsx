@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@patternfly/react-core';
-import { ArrowLeft, User, Brain, ScrollText, Palette, ShieldCheck, Volume2 } from 'lucide-react';
+import { ArrowLeft, User, Brain, ScrollText, Palette, ShieldCheck, Volume2, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ProfileSection } from '../components/settings/ProfileSection';
 import { MemoryList } from '../components/settings/MemoryList';
@@ -9,8 +9,9 @@ import { RulesEditor } from '../components/settings/RulesEditor';
 import { AppearanceSettings } from '../components/settings/AppearanceSettings';
 import { AlwaysAllowedTools } from '../components/settings/AlwaysAllowedTools';
 import { VoiceSettings } from '../components/settings/VoiceSettings';
+import { IntegrationsSettings } from '../components/settings/IntegrationsSettings';
 
-type TabId = 'profile' | 'memories' | 'rules' | 'appearance' | 'tool-approvals' | 'voice';
+type TabId = 'profile' | 'memories' | 'rules' | 'appearance' | 'tool-approvals' | 'voice' | 'integrations';
 
 const TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'profile', label: 'Profile', icon: User },
@@ -19,6 +20,7 @@ const TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'voice', label: 'Voice', icon: Volume2 },
   { id: 'tool-approvals', label: 'Tool Approvals', icon: ShieldCheck },
+  { id: 'integrations', label: 'Integrations', icon: Link2 },
 ];
 
 const TAB_CONTENT: Record<TabId, React.FC> = {
@@ -28,6 +30,7 @@ const TAB_CONTENT: Record<TabId, React.FC> = {
   appearance: AppearanceSettings,
   voice: VoiceSettings,
   'tool-approvals': AlwaysAllowedTools,
+  integrations: IntegrationsSettings,
 };
 
 export function SettingsPage() {

@@ -10,6 +10,7 @@ import {
   selectChatsError,
   selectStreamingState,
   selectWorkflowExecution,
+  appendMessageToChat,
   setMessageFeedback,
   updateChat,
   updateStreamingState,
@@ -151,6 +152,68 @@ export function ChatPage({ threadId }: { threadId: string }) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, feedbackUserId]);
+
+  // SSE connection for real-time workflow events from Temporal/Claude Code
+  useEffect(() => {
+    if (!chatId || isClientCreatedChat(chatId)) return;
+    const userId = typeof window.USER_DATA?.preferred_username === 'string'
+      ? window.USER_DATA.preferred_username : 'anonymous';
+    const apiUrl = typeof window.APP_DATA?.apiUrl === 'string' ? window.APP_DATA.apiUrl : '';
+    const eventUrl = `${apiUrl}/api/events/${chatId}?user_id=${userId}`;
+
+    const es = new EventSource(eventUrl);
+
+    es.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'claude_stream') {
+          // Real-time Claude Code output — append to chat as streaming AI message
+          const streamEvent = data.event || {};
+          const eventType = streamEvent.type;
+          let content = '';
+
+          if (eventType === 'assistant' && streamEvent.message?.content) {
+            const c = streamEvent.message.content;
+            content = typeof c === 'string' ? c : Array.isArray(c)
+              ? c.filter((b: {type?: string; text?: string}) => b.type === 'text').map((b: {text?: string}) => b.text).join('')
+              : '';
+          } else if (eventType === 'tool_use') {
+            content = `🔧 Using tool: **${streamEvent.tool || streamEvent.name || '?'}**`;
+          } else if (eventType === 'tool_result') {
+            const output = streamEvent.output || streamEvent.content || '';
+            content = typeof output === 'string' && output.length > 200 ? output.slice(0, 200) + '...' : String(output);
+          } else if (eventType === 'result') {
+            content = streamEvent.result || 'Task complete.';
+          }
+
+          if (content) {
+            const streamMsg = {
+              type: 'ai' as const,
+              content: content,
+              tool_calls: [],
+              id: `stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            };
+            dispatch(appendMessageToChat({ chatId, message: streamMsg }));
+          }
+        } else {
+          // Other events — refetch thread state
+          const msgs = await getThreadState(chatId);
+          if (msgs.length > (currentChat?.messages?.length ?? 0)) {
+            dispatch(updateChat({ id: chatId, updates: { messages: msgs } }));
+            thread.setMessages(msgs.map(m => JSON.parse(JSON.stringify(m))));
+          }
+        }
+      } catch {}
+    };
+
+    es.onerror = () => {
+      // EventSource auto-reconnects
+    };
+
+    return () => es.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
 
   const initialPromptSent = useRef(false);
   useEffect(() => {

@@ -29,6 +29,21 @@ export interface HITLInterruptValue {
   review_configs: HITLReviewConfig[];
 }
 
+export interface StructuredQuestion {
+  id: string;
+  text: string;
+  input_type: 'text' | 'single_select' | 'multi_select';
+  options?: string[];
+  placeholder?: string;
+  required?: boolean;
+}
+
+export interface StructuredQuestionsPayload {
+  type: 'clarifying_questions';
+  message?: string;
+  questions: StructuredQuestion[];
+}
+
 export interface McpAuthPayload {
   type: 'mcp_auth_required';
   mcp_name: string;

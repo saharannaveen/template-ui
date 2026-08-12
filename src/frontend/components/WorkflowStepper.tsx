@@ -19,13 +19,14 @@ const PHASES: Array<{ key: WorkflowPhase; label: string }> = [
 
 export function WorkflowStepper({ currentPhase, className = '' }: WorkflowStepperProps) {
   const currentIndex = PHASES.findIndex((p) => p.key === currentPhase);
+  const allDone = currentPhase === 'done';
 
   return (
     <div className={`flex items-center gap-2 ${className}`}>
       {PHASES.map((phase, index) => {
-        const isComplete = index < currentIndex;
-        const isCurrent = index === currentIndex;
-        const isPending = index > currentIndex;
+        const isComplete = allDone || index < currentIndex;
+        const isCurrent = !allDone && index === currentIndex;
+        const isPending = !allDone && index > currentIndex;
 
         return (
           <div key={phase.key} className="flex items-center gap-2">

@@ -28,8 +28,11 @@ import { selectAlwaysAllowedTools } from '@/redux/slices/userSettings';
 import { isSubAgentToolCall, extractSubAgentName } from '@/types/deep-agent';
 import type { HITLInterruptValue, InterruptInfo } from '@/types/deep-agent';
 import { applyWorkflowEvent } from '@/types/workflow-progress';
-import type { WorkflowExecution } from '@/types/workflow-progress';
+import type { WorkflowExecution, WorkflowProgressEvent } from '@/types/workflow-progress';
 import { getThreadState } from '@/services/agent-rest';
+import { addNotificationFromSSE } from '@/redux/slices/notifications';
+import { updateWorkflowFromSSE } from '@/redux/slices/workflows';
+import type { WorkflowStatus, WorkflowPhase } from '@/types/workflow';
 
 function enrichInterrupt(interrupt: InterruptPayload): InterruptInfo {
   const raw = interrupt.value as string | HITLInterruptValue;
@@ -187,6 +190,45 @@ export function useStreamingAPI(threadId: string) {
   if (!managerRef.current) {
     managerRef.current = getStreamingManager(threadId);
   }
+
+  const handleWorkflowProgressEvent = useCallback(
+    (evt: WorkflowProgressEvent) => {
+      const next = applyWorkflowEvent(workflowExecutionRef.current, evt);
+      workflowExecutionRef.current = next;
+      dispatch(updateStreamingState({ chatId: threadId, state: { workflowExecution: next } }));
+
+      const workflowId = (evt as { data?: { workflow_id?: string } }).data?.workflow_id;
+      if (workflowId) {
+        const phase = (evt as { data?: { phase?: string } }).data?.phase ?? '';
+        const status = (evt as { data?: { status?: string } }).data?.status ?? 'running';
+        const cost = (evt as { data?: { cumulative_cost?: number } }).data?.cumulative_cost ?? 0;
+        const mappedStatus = (status === 'failed' ? 'error' : status === 'completed' ? 'complete' : status) as WorkflowStatus;
+        dispatch(updateWorkflowFromSSE({
+          id: workflowId,
+          status: mappedStatus,
+          currentPhase: (phase || 'estimate') as WorkflowPhase,
+          costUsd: cost,
+        }));
+      }
+
+      const evtType = (evt as { event?: string }).event ?? (evt as { type?: string }).type;
+      if (workflowId && (evtType === 'checkpoint' || evtType === 'completion' || evtType === 'cost_alert' || evtType === 'struggle' || evtType === 'error' || evtType === 'complete')) {
+        const message = (evt as { data?: { message?: string } }).data?.message ?? '';
+        const taskName = (evt as { data?: { task_name?: string } }).data?.task_name ?? '';
+        dispatch(addNotificationFromSSE({
+          id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          type: evtType === 'complete' ? 'completion' : evtType as 'checkpoint' | 'completion' | 'struggle' | 'cost_alert' | 'error',
+          workflowId: workflowId,
+          title: taskName || workflowId,
+          message,
+          url: `/workflows/${workflowId}`,
+          read: false,
+          timestamp: new Date().toISOString(),
+        }));
+      }
+    },
+    [dispatch, threadId],
+  );
 
   const handleStreamActivityStatus = useCallback((status: StreamStatus) => {
     if (status === 'connecting' || status === 'streaming') {
@@ -534,9 +576,7 @@ export function useStreamingAPI(threadId: string) {
               setTraceId(data.trace_id);
             },
             onWorkflowProgress(evt) {
-              const next = applyWorkflowEvent(workflowExecutionRef.current, evt);
-              workflowExecutionRef.current = next;
-              dispatch(updateStreamingState({ chatId: threadId, state: { workflowExecution: next } }));
+              handleWorkflowProgressEvent(evt);
             },
           };
 
@@ -568,7 +608,7 @@ export function useStreamingAPI(threadId: string) {
         await new Promise<void>((r) => setTimeout(r, computeRetryDelayMs(attempt + 1)));
       }
     },
-    [dispatch, threadId, memories, activeRules, handleStreamActivityStatus],
+    [dispatch, threadId, memories, activeRules, handleStreamActivityStatus, handleWorkflowProgressEvent],
   );
 
   /**

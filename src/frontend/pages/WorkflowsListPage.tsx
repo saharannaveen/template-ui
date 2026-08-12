@@ -23,6 +23,8 @@ export function WorkflowsListPage() {
 
   useEffect(() => {
     dispatch(fetchWorkflows());
+    const interval = setInterval(() => dispatch(fetchWorkflows()), 10000);
+    return () => clearInterval(interval);
   }, [dispatch]);
 
   const runningWorkflows = workflows.filter(

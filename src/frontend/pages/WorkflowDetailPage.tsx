@@ -44,11 +44,13 @@ export function WorkflowDetailPage() {
   useEffect(() => {
     if (workflowId) {
       dispatch(fetchWorkflowDetail(workflowId));
+      const interval = setInterval(() => dispatch(fetchWorkflowDetail(workflowId)), 5000);
+      return () => {
+        clearInterval(interval);
+        dispatch(clearActiveWorkflow());
+      };
     }
-
-    return () => {
-      dispatch(clearActiveWorkflow());
-    };
+    return () => { dispatch(clearActiveWorkflow()); };
   }, [workflowId, dispatch]);
 
   const handleAction = async (action: 'pause' | 'cancel' | 'intervene' | 'open-chat', feedback?: string) => {

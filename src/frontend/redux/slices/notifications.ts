@@ -28,7 +28,16 @@ export const fetchNotifications = createAsyncThunk('notifications/fetchAll', asy
   }
 
   const data = await response.json();
-  return data.notifications || [];
+  return (data.notifications || []).map((n: Record<string, unknown>) => ({
+    id: n.notification_id || n.id || '',
+    type: n.type || 'checkpoint',
+    workflowId: n.workflow_id || n.workflowId || '',
+    title: n.task_name || n.title || '',
+    message: n.message || '',
+    timestamp: n.created_at || n.timestamp || '',
+    read: n.read || false,
+    url: n.url || `/workflows/${n.workflow_id || ''}`,
+  })) as Notification[];
 });
 
 export const markAsRead = createAsyncThunk(
