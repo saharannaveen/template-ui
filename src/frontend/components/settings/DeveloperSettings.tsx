@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { EvalDashboard } from './eval';
+import { PerfDashboard } from './perf';
 
 function CollapsibleSection({
   title,
@@ -38,6 +39,10 @@ export function DeveloperSettings() {
     <div className="space-y-4">
       <CollapsibleSection title="Agent Evaluation">
         <EvalDashboard />
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Performance Baseline" defaultOpen={false}>
+        <PerfDashboard />
       </CollapsibleSection>
     </div>
   );
